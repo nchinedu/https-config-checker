@@ -1,35 +1,32 @@
 import os
 from flask import Flask, render_template, request, jsonify
-import sqlite3
+import psycopg2
+from psycopg2.extras import DictCursor
 from datetime import datetime
+from config import DATABASE_URL
 
 app = Flask(__name__)
 
+def get_db_connection():
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    return psycopg2.connect(DATABASE_URL)
+
 def setup_database():
-    conn = sqlite3.connect('specimen_records.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS specimens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(100) NOT NULL,
             microscope_size REAL NOT NULL,
             actual_size REAL NOT NULL,
-            date_added TIMESTAMP
+            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.commit()
+    cursor.close()
     conn.close()
-
-def original_size(microscope_size, magn):
-    '''
-    Calculates the real ife size of the organism given the microscope size
-    '''
-    specimen_size = microscope_size / magn * 1000
-    return specimen_size
-
-@app.route('/')
-def home():
-    return render_template('index.html')
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -41,13 +38,14 @@ def calculate():
         
         actual_size = original_size(microscope_size, magn)
         
-        conn = sqlite3.connect('specimen_records.db')
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO specimens (username, microscope_size, actual_size, date_added)
-            VALUES (?, ?, ?, ?)
-        ''', (username, microscope_size, actual_size, datetime.now()))
+            INSERT INTO specimens (username, microscope_size, actual_size)
+            VALUES (%s, %s, %s)
+        ''', (username, microscope_size, actual_size))
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({
@@ -62,18 +60,30 @@ def calculate():
 
 @app.route('/recent-measurements')
 def get_recent_measurements():
-    conn = sqlite3.connect('specimen_records.db')
-    cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
     cursor.execute('''
         SELECT username, microscope_size, actual_size, date_added 
         FROM specimens 
         ORDER BY date_added DESC 
         LIMIT 5
     ''')
-    measurements = cursor.fetchall()
+    measurements = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     
     return jsonify(measurements)
+
+def original_size(microscope_size, magn):
+    '''
+    Calculates the real ife size of the organism given the microscope size
+    '''
+    specimen_size = microscope_size / magn * 1000
+    return specimen_size
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 if __name__ == '__main__':
     setup_database()
