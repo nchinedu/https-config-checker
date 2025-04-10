@@ -40,7 +40,7 @@ class SpecimenCalculator(tk.Tk):
         super().__init__()
 
         self.title("Specimen Size Calculator")
-        self.geometry("400x500")
+        self.geometry("800x1000")
         
         # Create main frame
         main_frame = ttk.Frame(self, padding="10")
