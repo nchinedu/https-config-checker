@@ -1,26 +1,28 @@
 import os
 from flask import Flask, render_template, request, jsonify
-import psycopg2
-from psycopg2.extras import DictCursor
+import MySQLdb
 from datetime import datetime
-from config import DATABASE_URL
+from config import MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB
 
 app = Flask(__name__)
 
 def get_db_connection():
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-    return psycopg2.connect(DATABASE_URL)
+    return MySQLdb.connect(
+        host=MYSQL_HOST,
+        user=MYSQL_USER,
+        passwd=MYSQL_PASSWORD,
+        db=MYSQL_DB
+    )
 
 def setup_database():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS specimens (
-            id SERIAL PRIMARY KEY,
+            id INT AUTO_INCREMENT PRIMARY KEY,
             username VARCHAR(100) NOT NULL,
-            microscope_size REAL NOT NULL,
-            actual_size REAL NOT NULL,
+            microscope_size FLOAT NOT NULL,
+            actual_size FLOAT NOT NULL,
             date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
